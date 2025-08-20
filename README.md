@@ -19,42 +19,7 @@ Before diving into the deployment, ensure you have the following:
 ### Granting Permissions and Creating Database
 First, we assign the necessary roles and permissions to ensure our services can bind endpoints and access required resources.
 
-```sql
--- Assign Account Admin Role and Grant Permissions
-USE ROLE ACCOUNTADMIN;
-GRANT BIND SERVICE ENDPOINT ON ACCOUNT TO ROLE DS_ROLE;
-
--- Switch to DS_ROLE and Create Database
-USE ROLE DS_ROLE;
-CREATE DATABASE IF NOT EXISTS LLM;
-USE DATABASE LLM;
-```
-
-### Creating Compute Resources
-We create a compute pool that specifies GPU resources for our AI models.
-
-```sql
--- Create Compute Pool for GPU Resources
-CREATE COMPUTE POOL GPU_NV_S
-  MIN_NODES = 1
-  MAX_NODES = 4
-  INSTANCE_FAMILY = GPU_NV_S;
-```
-
-### Setting Up Storage and Networking
-We set up stages for storing models and service specifications, and configure external access for Hugging Face API calls.
-
-```sql
--- Create Image Repository and Stages
-CREATE OR REPLACE IMAGE REPOSITORY REPO_IMAGE;
-CREATE OR REPLACE STAGE MODELS DIRECTORY = (ENABLE = TRUE) ENCRYPTION = (TYPE='SNOWFLAKE_SSE');
-CREATE OR REPLACE STAGE SPECS DIRECTORY = (ENABLE = TRUE) ENCRYPTION = (TYPE='SNOWFLAKE_SSE');
-
--- Configure External Access
-CREATE OR REPLACE NETWORK RULE HUGGING_FACE_NETWORK MODE = EGRESS TYPE = HOST_PORT VALUE_LIST = ('0.0.0.0');
-CREATE OR REPLACE EXTERNAL ACCESS INTEGRATION HUGGING_FACE_INTEGRATION ALLOWED_NETWORK_RULES = (HUGGING_FACE_NETWORK) ENABLED = TRUE;
-GRANT USAGE ON INTEGRATION HUGGING_FACE_INTEGRATION TO ROLE DS_ROLE;
-```
+The SQL Setup file has the commands that need to be run to set up the requisite permissions in Snowflake.
 
 ## Step 2: Preparing the Container Services
 
@@ -79,6 +44,28 @@ EXPOSE 8501
 ENTRYPOINT ["streamlit", "run", "ui.py", "--server.port=8500", "--server.address=0.0.0.0"]
 ```
 
+Run the following from the terminal
+
+```bash
+docker build --platform=linux/amd64 -t local/spcs-deepseek:latest deepseek/ 
+docker build --platform=linux/amd64 -t local/spcs-ui:latest ui/
+```
+
+```bash
+docker tag local/spcs-deepseek:latest <your_snowflake_registry>/repo_image/deepseek_image 
+docker tag local/spcs-ui:latest <your_snowflake_registry>/repo_image/ui_image
+```
+
+```bash
+snow spcs image-registry login
+```
+
+```bash
+docker push <your_snowflake_registry>/repo_image/deepseek_image d
+docker push <your_snowflake_registry>/repo_image/ui_image
+```
+
+
 ### YAML Specification for Service Deployment
 This YAML file defines how the Deepseek AI model and UI are deployed on Snowflake's container services.
 
@@ -86,45 +73,44 @@ This YAML file defines how the Deepseek AI model and UI are deployed on Snowflak
 spec:
   containers:
     - name: deepseek
-      image: <image_location>deepseek_image  # Replace <image_location> with your actual registry path
+      image: /deepseek_db/public/deepseek_repo_image/repo_image/deepseek_image
       resources:
         requests:
-          nvidia.com/gpu: 4
+          nvidia.com/gpu: 4  # Requesting 4 GPUs for model execution
         limits:
-          nvidia.com/gpu: 4
+          nvidia.com/gpu: 4  # Limiting to 4 GPUs to avoid over-allocation
       env:
-        MODEL: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
-        HF_TOKEN: <your_hugging_face_token>  # Replace with your Hugging Face token
-        TENSOR_PARALLEL_SIZE: 4
-        GPU_MEMORY_UTILIZATION: 0.99
-        MAX_MODEL_LEN: 75000
-        VLLM_API_KEY: <your_api_key>  # Replace with your VLLM API key
+        MODEL: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B  # Model to be used
+        HF_TOKEN: #insert here. It should begin with hf_
+        TENSOR_PARALLEL_SIZE: 4  # Parallelism setting for distributed model
+        GPU_MEMORY_UTILIZATION: 0.99  # GPU memory utilization threshold
+        MAX_MODEL_LEN: 75000  # Maximum model input length
+        VLLM_API_KEY: dummy  # API key for vLLM integration
       volumeMounts:
         - name: models
           mountPath: /models
         - name: dshm
           mountPath: /dev/shm
-
     - name: ui
-      image: <image_location>ui_image  # Replace <image_location> with your actual registry path
+      image: /deepseek_db/public/deepseek_repo_image/repo_image/ui_image
       env:
         MODEL: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
-
   endpoints:
     - name: chat
-      port: 8501
-      public: true
-
+      port: 8500  # Port exposed for chat service
+      public: true  # Publicly accessible endpoint
+    - name: api
+      port: 8000
+      public: false
   volumes:
     - name: models
-      source: block
-      size: 100Gi
+      source: block  # Block storage for models
+      size: 100Gi  # Allocate 100 GiB for models
     - name: dshm
-      source: memory
-      size: 10Gi
-
+      source: memory  # Memory-backed storage for shared memory
+      size: 10Gi  # Allocate 10 GiB for shared memory
   networkPolicyConfig:
-    allowInternetEgress: true
+    allowInternetEgress: true  # Enable outbound internet access for the service
 ```
 
 ## Step 3: Launching the AI Chat Hub
@@ -171,4 +157,4 @@ CALL SYSTEM$GET_SERVICE_STATUS('DEEPSEEK');
 CALL SYSTEM$GET_SERVICE_LOGS('DEEPSEEK', '0', 'deepseek', '1000');
 ```
 
-
+A blog can be found [here](https://medium.com/@chimp/deploying-deepseek-on-snowflake-using-snowpark-container-servicess-50918db7833e). Please note, some details have been changed
