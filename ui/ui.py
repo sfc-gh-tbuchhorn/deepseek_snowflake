@@ -26,7 +26,7 @@ st.title("🚘 Deepseek AI Chat Hub")
 st.subheader(":snowflake: Powered by Snowpark Container Services")
 
 # OpenAI Client Initialization
-client = OpenAI(base_url="http://localhost:8000/v1", api_key="dummy")
+client = OpenAI(base_url="http://deepseek:8000/v1", api_key="dummy")
 
 # Session State Initialization
 st.session_state.setdefault("openai_model", os.getenv("MODEL"))
