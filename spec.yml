@@ -1,0 +1,41 @@
+spec:
+  containers:
+    - name: deepseek
+      image: /deepseek_db/public/deepseek_repo_image/repo_image/deepseek_image
+      resources:
+        requests:
+          nvidia.com/gpu: 4  # Requesting 4 GPUs for model execution
+        limits:
+          nvidia.com/gpu: 4  # Limiting to 4 GPUs to avoid over-allocation
+      env:
+        MODEL: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B  # Model to be used
+        HF_TOKEN:   # Hugging Face API token
+        TENSOR_PARALLEL_SIZE: 4  # Parallelism setting for distributed model
+        GPU_MEMORY_UTILIZATION: 0.99  # GPU memory utilization threshold
+        MAX_MODEL_LEN: 75000  # Maximum model input length
+        VLLM_API_KEY: dummy  # API key for vLLM integration
+      volumeMounts:
+        - name: models
+          mountPath: /models
+        - name: dshm
+          mountPath: /dev/shm
+    - name: ui
+      image: /deepseek_db/public/deepseek_repo_image/repo_image/ui_image
+      env:
+        MODEL: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
+  endpoints:
+    - name: chat
+      port: 8500  # Port exposed for chat service
+      public: true  # Publicly accessible endpoint
+    - name: api
+      port: 8000
+      public: false
+  volumes:
+    - name: models
+      source: block  # Block storage for models
+      size: 100Gi  # Allocate 100 GiB for models
+    - name: dshm
+      source: memory  # Memory-backed storage for shared memory
+      size: 10Gi  # Allocate 10 GiB for shared memory
+  networkPolicyConfig:
+    allowInternetEgress: true  # Enable outbound internet access for the service
