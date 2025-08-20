@@ -9,7 +9,6 @@ spec:
           nvidia.com/gpu: 4  # Limiting to 4 GPUs to avoid over-allocation
       env:
         MODEL: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B  # Model to be used
-        HF_TOKEN:   # Hugging Face API token
         TENSOR_PARALLEL_SIZE: 4  # Parallelism setting for distributed model
         GPU_MEMORY_UTILIZATION: 0.99  # GPU memory utilization threshold
         MAX_MODEL_LEN: 75000  # Maximum model input length
