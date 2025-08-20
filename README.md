@@ -143,7 +143,7 @@ Once everything is set up, deploy the service using the specifications provided.
 
 ```sql
 -- Use the DS_ROLE to create and manage the service
-USE ROLE DS_ROLE;
+USE ROLE DEEPSEEK_ROLE;
 
 -- Deploy the Deepseek AI service
 CREATE SERVICE DEEPSEEK
