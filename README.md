@@ -112,6 +112,7 @@ spec:
   networkPolicyConfig:
     allowInternetEgress: true  # Enable outbound internet access for the service
 ```
+You need to upload this file to the stage created in the setup
 
 ## Step 3: Launching the AI Chat Hub
 
