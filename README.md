@@ -49,11 +49,13 @@ Run the following from the terminal
 ```bash
 docker build --platform=linux/amd64 -t local/spcs-deepseek:latest deepseek/ 
 docker build --platform=linux/amd64 -t local/spcs-ui:latest ui/
+docker build --platform=linux/amd64 -t local/spcs-relay:latest relay/
 ```
 
 ```bash
 docker tag local/spcs-deepseek:latest <your_snowflake_registry>/repo_image/deepseek_image 
 docker tag local/spcs-ui:latest <your_snowflake_registry>/repo_image/ui_image
+docker tag local/spcs-relay:latest <your_snowflake_registry>/repo_image/relay_image
 ```
 
 ```bash
@@ -61,8 +63,9 @@ snow spcs image-registry login
 ```
 
 ```bash
-docker push <your_snowflake_registry>/repo_image/deepseek_image d
+docker push <your_snowflake_registry>/repo_image/deepseek_image
 docker push <your_snowflake_registry>/repo_image/ui_image
+docker push <your_snowflake_registry>/repo_image/relay_image
 ```
 
 
@@ -157,5 +160,12 @@ SHOW SERVICES;
 CALL SYSTEM$GET_SERVICE_STATUS('DEEPSEEK');
 CALL SYSTEM$GET_SERVICE_LOGS('DEEPSEEK', '0', 'deepseek', '1000');
 ```
+
+Please note, if you get the following error:
+
+openai.APIConnectionError: Connection error.
+
+it might be because the service is not ready yey (even though the container says it is). We do not have arror handling for that in the code. Please wait a few minutes before debugging.
+
 
 A blog can be found [here](https://medium.com/@chimp/deploying-deepseek-on-snowflake-using-snowpark-container-servicess-50918db7833e). Please note, some details have been changed

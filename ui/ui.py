@@ -53,7 +53,7 @@ if prompt := st.chat_input("📢 Share your thoughts..."):
     with st.container():
         assistant_placeholder = st.empty()
         for chunk in stream:
-            token = chunk.choices[0].delta.get("content", "")
+            token = chunk.choices[0].delta.content or ""
             full_response += token
             assistant_placeholder.markdown(
                 f'<div class="stChatMessage assistant">{full_response}</div>',

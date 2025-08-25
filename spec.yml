@@ -9,7 +9,7 @@ spec:
           nvidia.com/gpu: 4  # Limiting to 4 GPUs to avoid over-allocation
       env:
         MODEL: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B  # Model to be used
-        HF_TOKEN: #input your hugging face token here. It should begin with hf_
+        HF_TOKEN:  #input your hugging face token here.
         TENSOR_PARALLEL_SIZE: 4  # Parallelism setting for distributed model
         GPU_MEMORY_UTILIZATION: 0.99  # GPU memory utilization threshold
         MAX_MODEL_LEN: 75000  # Maximum model input length
@@ -23,12 +23,17 @@ spec:
       image: /deepseek_db/public/deepseek_repo_image/repo_image/ui_image
       env:
         MODEL: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
+    - name: relay
+      image: /deepseek_db/public/deepseek_repo_image/repo_image/relay_image
   endpoints:
     - name: chat
       port: 8500  # Port exposed for chat service
       public: true  # Publicly accessible endpoint
     - name: api
       port: 8000
+      public: false
+    - name: relay
+      port: 8600
       public: false
   volumes:
     - name: models

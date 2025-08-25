@@ -50,9 +50,20 @@ CREATE SERVICE DEEPSEEK
 SHOW SERVICES;
 CALL SYSTEM$GET_SERVICE_STATUS('DEEPSEEK');
 CALL SYSTEM$GET_SERVICE_LOGS('DEEPSEEK', '0', 'ui', '1000');
+CALL SYSTEM$GET_SERVICE_LOGS('DEEPSEEK', '0', 'deepseek', '1000');
+CALL SYSTEM$GET_SERVICE_LOGS('DEEPSEEK', '0', 'relay', '1000');
 
 -- Step 13: Display Service Endpoints and Containers. Take the endpoint and log in. You should see Streamlit UI to DeepSeek
 SHOW ENDPOINTS IN SERVICE DEEPSEEK;
 SHOW SERVICE CONTAINERS IN SERVICE DEEPSEEK;
+
+-- Step 14: Create Service function
+CREATE OR REPLACE FUNCTION deepseek_chat_udf(text varchar)
+   RETURNS varchar
+   SERVICE=deepseek
+   ENDPOINT=relay
+   AS '/relay';
+
+SELECT deepseek_chat_udf('What is the capital of the moon');
 
 ALTER SERVICE DEEPSEEK SUSPEND;
