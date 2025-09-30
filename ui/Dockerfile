@@ -5,10 +5,12 @@ FROM python:3.10-slim
 WORKDIR /app
 
 # Copy all files from the host machine to the working directory in the container
-COPY /* /app
+COPY requirements.txt .
 
 # Install required Python packages listed in requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
 
 # Expose port 8501 for the Streamlit app (Streamlit default port)
 EXPOSE 8501

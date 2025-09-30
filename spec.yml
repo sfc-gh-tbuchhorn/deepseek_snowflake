@@ -23,6 +23,7 @@ spec:
       image: /deepseek_db/public/deepseek_repo_image/repo_image/ui_image
       env:
         MODEL: deepseek-ai/DeepSeek-R1-Distill-Qwen-32B
+        SNOWFLAKE_WAREHOUSE: DEEPSEEK_WH
     - name: relay
       image: /deepseek_db/public/deepseek_repo_image/repo_image/relay_image
   endpoints:
@@ -44,3 +45,6 @@ spec:
       size: 10Gi  # Allocate 10 GiB for shared memory
   networkPolicyConfig:
     allowInternetEgress: true  # Enable outbound internet access for the service
+capabilities:
+  securityContext:
+    executeAsCaller: true

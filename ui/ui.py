@@ -9,21 +9,35 @@ from snowflake.snowpark.functions import col
 from snowflake.snowpark.types import StructType, StructField, StringType
 from snowflake.snowpark import functions as F
 from snowflake.snowpark import types as T
+from streamlit.web.server.websocket_headers import _get_websocket_headers
 
 
 # Page Configuration
 st.set_page_config(page_title="Snowswift AI Chat Hub", page_icon="🚘", layout="wide", initial_sidebar_state="expanded")
 
-def connection() -> snowflake.connector.SnowflakeConnection:
+def get_login_token():
+    """
+    Read the login token supplied automatically by Snowflake. These tokens
+    are short lived and should always be read right before creating any new connection.
+    """
+    with open("/snowflake/session/token", "r") as f:
+        return f.read()
+
+def get_connection(ingress_user_token=None) -> snowflake.connector.SnowflakeConnection:
     if os.path.isfile("/snowflake/session/token"):
+        if ingress_user_token:
+            token = get_login_token() + "." + ingress_user_token
+        else:
+            token = get_login_token()
+
         creds = {
             'host': os.getenv('SNOWFLAKE_HOST'),
             'port': os.getenv('SNOWFLAKE_PORT'),
             'protocol': "https",
             'account': os.getenv('SNOWFLAKE_ACCOUNT'),
             'authenticator': "oauth",
-            'token': open('/snowflake/session/token', 'r').read(),
-            'warehouse': "INSURANCEWAREHOUSE",
+            'token': token,
+            'warehouse': os.getenv('SNOWFLAKE_WAREHOUSE'),
             'database': os.getenv('SNOWFLAKE_DATABASE'),
             'schema': os.getenv('SNOWFLAKE_SCHEMA'),
             'client_session_keep_alive': True
@@ -42,16 +56,38 @@ def connection() -> snowflake.connector.SnowflakeConnection:
     connection = snowflake.connector.connect(**creds)
     return connection
 
-def session() -> Session:
-    return Session.builder.configs({"connection": connection()}).create()
+@st.cache_resource(show_spinner=False)
+def initialize_sessions(ingress_user_token):
+    """Initializes and caches both the Owner and Visitor Snowpark Sessions."""
+    sessions = {
+        "owner_session": None,
+        "visitor_session": None
+    }
+    
+    # 1. Create Owner Session (Default Token)
+    try:
+        st.info("🔐 Establishing **Owner** session...")
+        sessions["owner_session"] = Session.builder.configs({
+            "connection": get_connection(ingress_user_token=None)
+        }).create()
+        st.success("✅ Owner session established.")
+    except Exception as e:
+        st.warning(f"⚠️ Could not establish Owner session: {e}")
 
-# Make connection to Snowflake and cache it
-@st.cache_resource
-def connect_to_snowflake():
-    return session()
-
-session = connect_to_snowflake()
-session.sql("USE WAREHOUSE DEEPSEEK_WH").collect()
+    # 2. Create Visitor Session (Restricted Caller Token)
+    if ingress_user_token:
+        try:
+            st.info("🔐 Establishing **Visitor** session (restricted caller)...")
+            sessions["visitor_session"] = Session.builder.configs({
+                "connection": get_connection(ingress_user_token=ingress_user_token)
+            }).create()
+            st.success("✅ Visitor session established.")
+        except Exception as e:
+            st.warning(f"⚠️ Could not establish Visitor session: {e}")
+            
+    # Clear all ephemeral info messages
+    st.empty() 
+    return sessions
 
 # Custom CSS
 st.markdown("""
@@ -73,6 +109,33 @@ st.subheader(":snowflake: Powered by Snowpark Container Services")
 # Sidebar Navigation
 mode = st.sidebar.radio("Choose a mode", ["Chat", "RAG"])
 debug_mode = st.sidebar.checkbox("🔧 Debug mode", value=False)
+as_visitor = st.sidebar.checkbox("Visitor Mode", value=False)
+
+# Get User/Token from SPCS Headers
+headers = _get_websocket_headers()
+ingress_user_token = headers.get("Sf-Context-Current-User-Token")
+ingress_user = headers.get("Sf-Context-Current-User")
+
+# --- Session Initialization and Selection ---
+# Run the cached initialization function
+with st.spinner("Initializing Snowflake sessions..."):
+    # This runs once and stores the sessions in Streamlit's cache
+    sessions = initialize_sessions(ingress_user_token)
+
+# Determine which session to use based on the toggle and token availability
+if as_visitor and ingress_user_token and sessions["visitor_session"]:
+    session = sessions["visitor_session"]
+    user = ingress_user
+    session_key = "visitor_session"
+elif sessions["owner_session"]:
+    session = sessions["owner_session"]
+    user = "Owner"
+    session_key = "owner_session"
+else:
+    st.error("❌ Cannot establish a valid Snowpark Session (Owner or Visitor). Check your environment/deployment.")
+    st.stop()
+    
+# --- End of Session Selection ---
 
 if debug_mode:
     # Debug: Print Snowflake session context
@@ -87,6 +150,7 @@ if debug_mode:
                 CURRENT_WAREHOUSE() AS warehouse
         ''').to_pandas()
         st.write(ctx_info)
+        st.write(f"Hello {user}")
     except Exception as e:
         st.write(f"❌ Could not fetch session context: {e}")
 
@@ -113,6 +177,7 @@ if prompt := st.chat_input("📢 Share your thoughts..."):
                 # Embed query
                 status.write("🔎 Embedding your query…")
 
+                #Alwys run the below with the App Owner Session
                 input_df = session.create_dataframe(
                 [Row(CONTEXT=prompt)],
                 schema=StructType([StructField("CONTEXT", StringType())])
@@ -120,7 +185,7 @@ if prompt := st.chat_input("📢 Share your thoughts..."):
 
                 # Create Model Registry
                 reg = Registry(
-                    session=session, 
+                    session=sessions["owner_session"], 
                     database_name="DEEPSEEK_DB", 
                     schema_name="EMBEDDING_MODEL_HOL_SCHEMA"
                     )
