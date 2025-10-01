@@ -206,18 +206,19 @@ if prompt := st.chat_input("📢 Share your thoughts..."):
 
                 status.update(label="📚 Searching for relevant chunks…", state="running")
 
-                closest_vector_q = "SELECT r.chunk, VECTOR_COSINE_SIMILARITY(r.chunk_vec, q.chunk_vec) AS similarity FROM DEEPSEEK_DB.RAGTOAI.RAG_CHUNKED_EMBEDDED_TABLE r, DEEPSEEK_DB.RAGTOAI.QUERY_TABLE q ORDER BY similarity DESC LIMIT 1"
+                closest_vector_q = "SELECT r.chunk, VECTOR_COSINE_SIMILARITY(r.chunk_vec, q.chunk_vec) AS similarity FROM DEEPSEEK_DB.RAGTOAI.RAG_CHUNKED_EMBEDDED_TABLE_RLS r, DEEPSEEK_DB.RAGTOAI.QUERY_TABLE q WHERE SIMILARITY > 0.5 ORDER BY similarity DESC LIMIT 1"
 
                 closest_vector = session.sql(closest_vector_q).to_pandas()
 
                 if closest_vector.empty:
                     context = ""
                     status.write("⚠️ No relevant chunk found; proceeding without extra context.")
+                    prompt_with_context = f"The first thing you must say is that no specific information was found about that question from our database, but you will attempt to answer anyway\n\nQuestion:\n{prompt}"
+
                 else:
                     context = closest_vector['CHUNK'].iloc[0]
                     status.write("✅ Found relevant context.")
-
-                prompt_with_context = f"Use the following context to answer the question:\n\nContext:\n{context}\n\nQuestion:\n{prompt}"
+                    prompt_with_context = f"Use the following context to answer the question:\n\nContext:\n{context}\n\nQuestion:\n{prompt}"
 
                 status.update(label="Done fetching context ✅", state="complete")
 
